@@ -942,6 +942,16 @@ function frame(now) {
 }
 requestAnimationFrame(frame);
 
+// onglet masqué : on met en pause plutôt que de perdre des vies hors écran
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    if (G.state === 'playing' || G.state === 'serving') togglePause();
+  } else {
+    last = performance.now();
+    acc = 0;
+  }
+});
+
 // ---------------------------------------------------------------- démarrage
 buildBricks(1);
 serve();
@@ -960,6 +970,9 @@ window.NOVA = {
     bricks: () => aliveBreakable(),
     balls: () => G.balls.filter(b => b.alive).length,
     destroyed: () => G.destroyed,
+    debris: () => G.debris.length,
+    powers: () => G.powerups.length,
+    ballPos: () => (G.balls[0] ? { x: +G.balls[0].x.toFixed(3), y: +G.balls[0].y.toFixed(3) } : null),
     start: startGame,
     launch,
     pause: togglePause,
@@ -967,8 +980,19 @@ window.NOVA = {
     nextLevel: () => { hideOverlay(); nextLevel(); },
     setPaddle: x => { G.paddle.target = clamp(x, -AW / 2, AW / 2); G.paddle.x = G.paddle.target; },
     aimBall: (vx, vy) => { const b = G.balls[0]; if (b) { b.vx = vx; b.vy = vy; } },
+    // pas-à-pas déterministe (indépendant de requestAnimationFrame) :
+    // sert aux tests automatisés et au rendu forcé quand l'onglet est masqué
+    step: (seconds, render) => {
+      const n = Math.max(1, Math.round((seconds || FIXED) / FIXED));
+      for (let i = 0; i < n; i++) {
+        if (G.state === 'playing' || G.state === 'serving') stepPhysics(FIXED);
+        stepFx(FIXED);
+      }
+      if (render !== false) { if (useBloom) composer.render(); else renderer.render(scene, camera); }
+      return { state: G.state, score: G.score, destroyed: G.destroyed, bricks: aliveBreakable(), lives: G.lives, balls: G.balls.filter(b => b.alive).length };
+    },
     bloom: () => useBloom,
     rendererInfo: () => renderer.info.render,
-    version: '3d-1.0'
+    version: '3d-1.1'
   }
 };
