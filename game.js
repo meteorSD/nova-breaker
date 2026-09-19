@@ -612,7 +612,7 @@ function setPaddleWidth(w) {
 }
 function serve() {
   clearBalls(); clearPowers();
-  const b = makeBall(G.paddle.x, PADDLE_Y + PADDLE_H / 2 + BALL_R + 0.06, 0, 0, false);
+  const b = makeBall(G.paddle.x, PADDLE_Y + PADDLE_H / 2 + BALL_R + 0.24, 0, 0, false);
   b.stuck = true;
   G.balls.push(b);
   G.state = 'serving';
@@ -748,7 +748,7 @@ function applyPower(type) {
 function stepBall(b, dt) {
   if (b.stuck) {
     b.x = G.paddle.x;
-    b.y = PADDLE_Y + PADDLE_H / 2 + BALL_R + 0.06;
+    b.y = PADDLE_Y + PADDLE_H / 2 + BALL_R + 0.24;
     return;
   }
   b.x += b.vx * dt;
@@ -910,7 +910,15 @@ function stepFx(dt) {
     b.glow.position.set(b.x, b.y, 0.1);
     b.light.position.set(b.x, b.y, 1.5);
     const sp = Math.hypot(b.vx, b.vy);
-    b.glow.scale.setScalar(2.5 + Math.min(1.6, sp * 0.06));
+    // au service la balle repose sur la palette : halo réduit pour ne pas
+    // fusionner visuellement avec elle
+    if (b.stuck) {
+      b.glow.scale.setScalar(1.9);
+      b.glow.material.opacity = 0.4;
+    } else {
+      b.glow.scale.setScalar(2.5 + Math.min(1.6, sp * 0.06));
+      b.glow.material.opacity = 0.7;
+    }
     b.mesh.rotation.x += sp * dt * 0.12;
     b.mesh.rotation.y += sp * dt * 0.09;
     b.hist.unshift({ x: b.x, y: b.y });
@@ -1127,6 +1135,6 @@ window.NOVA = {
     },
     bloom: () => useBloom,
     rendererInfo: () => renderer.info.render,
-    version: '3d-1.8'
+    version: '3d-1.9'
   }
 };
