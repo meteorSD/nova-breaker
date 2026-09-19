@@ -210,17 +210,40 @@ floor.rotation.x = -Math.PI / 2;
 floor.position.set(0, -1.6, 26);
 arena.add(floor);
 
-// socle de l'arène : ancre le terrain dans l'espace 3D
-const baseMat = new THREE.MeshStandardMaterial({ color: 0x080e1e, emissive: 0x1b6cff, emissiveIntensity: 0.5, roughness: 0.35, metalness: 0.7 });
-const base = new THREE.Mesh(new THREE.BoxGeometry(AW + RAIL * 2 + 0.4, 0.5, 2.6), baseMat);
-base.position.set(0, -0.55, 0.4);
+// socle de l'arène : posé sur la grille (pas flottant) pour ancrer le volume
+const FLOOR_Y = -1.6;
+const baseMat = new THREE.MeshStandardMaterial({ color: 0x080e1e, emissive: 0x1b6cff, emissiveIntensity: 0.42, roughness: 0.35, metalness: 0.7 });
+const BASE_H = 1.95;
+const base = new THREE.Mesh(new THREE.BoxGeometry(AW + RAIL * 2 + 0.4, BASE_H, 2.6), baseMat);
+base.position.set(0, FLOOR_Y + BASE_H / 2, 0.4);
 arena.add(base);
 const baseEdge = new THREE.LineSegments(
   new THREE.EdgesGeometry(base.geometry),
-  new THREE.LineBasicMaterial({ color: 0x8ff2ff, transparent: true, opacity: 0.75, blending: THREE.AdditiveBlending })
+  new THREE.LineBasicMaterial({ color: 0x8ff2ff, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending })
 );
 baseEdge.position.copy(base.position);
 arena.add(baseEdge);
+
+// faux ombrage de contact : la grille s'assombrit sous l'arène
+const aoTex = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const x = c.getContext('2d');
+  const g = x.createRadialGradient(128, 128, 10, 128, 128, 126);
+  g.addColorStop(0, 'rgba(0,0,0,0.85)');
+  g.addColorStop(0.55, 'rgba(0,0,0,0.45)');
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  x.fillStyle = g; x.fillRect(0, 0, 256, 256);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+})();
+const contact = new THREE.Mesh(
+  new THREE.PlaneGeometry(AW + 26, 26),
+  new THREE.MeshBasicMaterial({ map: aoTex, transparent: true, opacity: 0.75, depthWrite: false, blending: THREE.NormalBlending })
+);
+contact.rotation.x = -Math.PI / 2;
+contact.position.set(0, FLOOR_Y + 0.02, 6);
+arena.add(contact);
 
 // piliers d'angle : accentuent la parallaxe quand la caméra suit la balle
 const pillarGeo = new THREE.BoxGeometry(0.34, AH + 3, 0.34);
@@ -236,24 +259,34 @@ const pillarMatM = new THREE.MeshStandardMaterial({ color: 0x1a0722, emissive: 0
   });
 });
 
-// rails néon
-const railMat = new THREE.MeshStandardMaterial({ color: 0x0a1830, emissive: 0x1b6cff, emissiveIntensity: 0.55, roughness: 0.4, metalness: 0.6 });
-const railMatR = new THREE.MeshStandardMaterial({ color: 0x1a0a24, emissive: 0xff2fb0, emissiveIntensity: 0.5, roughness: 0.4, metalness: 0.6 });
+// rails néon — ancrés jusqu'au sol pour que l'arène « pose » dans l'espace
+const railMat = new THREE.MeshStandardMaterial({ color: 0x0a1830, emissive: 0x1b6cff, emissiveIntensity: 0.5, roughness: 0.4, metalness: 0.6 });
+const railMatR = new THREE.MeshStandardMaterial({ color: 0x1a0a24, emissive: 0xff2fb0, emissiveIntensity: 0.45, roughness: 0.4, metalness: 0.6 });
 function rail(w, h, d, x, y, mat) {
   const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
   m.position.set(x, y, -0.2);
   arena.add(m);
   const e = new THREE.LineSegments(
     new THREE.EdgesGeometry(m.geometry),
-    new THREE.LineBasicMaterial({ color: mat.emissive.getHex(), transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending })
+    new THREE.LineBasicMaterial({ color: mat.emissive.getHex(), transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending })
   );
   e.position.copy(m.position);
   arena.add(e);
   return m;
 }
-rail(RAIL, AH + RAIL * 2, 1.7, -(AW / 2 + RAIL / 2), AH / 2, railMat);
-rail(RAIL, AH + RAIL * 2, 1.7, (AW / 2 + RAIL / 2), AH / 2, railMatR);
+const SIDE_H = (AH + RAIL) - FLOOR_Y;
+const SIDE_Y = (AH + RAIL + FLOOR_Y) / 2;
+rail(RAIL, SIDE_H, 1.7, -(AW / 2 + RAIL / 2), SIDE_Y, railMat);
+rail(RAIL, SIDE_H, 1.7, (AW / 2 + RAIL / 2), SIDE_Y, railMatR);
 rail(AW + RAIL * 2, RAIL, 1.7, 0, AH + RAIL / 2, railMat);
+
+// joints de coin : masquent la rupture brutale entre rail cyan et rail magenta
+const jointMat = new THREE.MeshStandardMaterial({ color: 0x0b1424, emissive: 0xbfe9ff, emissiveIntensity: 0.85, roughness: 0.3, metalness: 0.7 });
+[-(AW / 2 + RAIL / 2), (AW / 2 + RAIL / 2)].forEach(jx => {
+  const j = new THREE.Mesh(new THREE.BoxGeometry(RAIL + 0.34, RAIL + 0.34, 1.9), jointMat);
+  j.position.set(jx, AH + RAIL / 2, -0.2);
+  arena.add(j);
+});
 
 // ---------------------------------------------------------------- palette
 const paddleGroup = new THREE.Group();
@@ -333,9 +366,9 @@ function edgeGeo() {
   return edgeGeoCache[k];
 }
 const MAT = {
-  1: new THREE.MeshStandardMaterial({ color: 0x08222e, emissive: HP_COLOR[1], emissiveIntensity: 0.95, roughness: 0.34, metalness: 0.22 }),
-  2: new THREE.MeshStandardMaterial({ color: 0x2a0a26, emissive: HP_COLOR[2], emissiveIntensity: 0.95, roughness: 0.34, metalness: 0.22 }),
-  3: new THREE.MeshStandardMaterial({ color: 0x2e1c07, emissive: HP_COLOR[3], emissiveIntensity: 0.95, roughness: 0.34, metalness: 0.22 }),
+  1: new THREE.MeshStandardMaterial({ color: 0x08222e, emissive: HP_COLOR[1], emissiveIntensity: 0.72, roughness: 0.34, metalness: 0.22 }),
+  2: new THREE.MeshStandardMaterial({ color: 0x2a0a26, emissive: HP_COLOR[2], emissiveIntensity: 0.72, roughness: 0.34, metalness: 0.22 }),
+  3: new THREE.MeshStandardMaterial({ color: 0x2e1c07, emissive: HP_COLOR[3], emissiveIntensity: 0.72, roughness: 0.34, metalness: 0.22 }),
   s: new THREE.MeshStandardMaterial({ color: 0x2b3242, emissive: STEEL_COLOR, emissiveIntensity: 0.28, roughness: 0.24, metalness: 0.95 }),
   flash: new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 2.6, roughness: 0.2, metalness: 0.0 })
 };
@@ -406,19 +439,26 @@ function spawnRing(x, y, color) {
 }
 
 // ---------------------------------------------------------------- power-ups
-const powerGeo = new THREE.OctahedronGeometry(0.66, 0);
+const powerGeo = new THREE.OctahedronGeometry(0.78, 0);
+const powerEdge = new THREE.EdgesGeometry(powerGeo);
 function spawnPower(x, y) {
   let total = 0; POWER_TYPES.forEach(p => total += p.w);
   let roll = Math.random() * total, type = POWER_TYPES[0];
   for (const p of POWER_TYPES) { roll -= p.w; if (roll <= 0) { type = p; break; } }
-  const mat = new THREE.MeshStandardMaterial({ color: 0x101820, emissive: type.c, emissiveIntensity: 1.7, roughness: 0.3, metalness: 0.4 });
+  const mat = new THREE.MeshStandardMaterial({ color: 0x101820, emissive: type.c, emissiveIntensity: 1.15, roughness: 0.3, metalness: 0.4 });
   const mesh = new THREE.Mesh(powerGeo, mat);
   mesh.position.set(x, y, 0.2);
   scene.add(mesh);
-  const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: LETTERS[type.t], color: type.c, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
-  spr.scale.setScalar(1.5);
+  // arêtes nettes : le bonus reste lisible même avec le bloom
+  const eg = new THREE.LineSegments(powerEdge, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));
+  mesh.add(eg);
+  // lettre blanche placée devant le gemme (pas noyée dedans)
+  const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: LETTERS[type.t], color: 0xffffff, transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending }));
+  spr.scale.setScalar(2.0);
+  spr.position.set(0, 0, 1.0);
+  spr.renderOrder = 5;
   mesh.add(spr);
-  const glow = glowSprite(type.c, 3.4, 0.55);
+  const glow = glowSprite(type.c, 2.8, 0.34);
   mesh.add(glow);
   G.powerups.push({ mesh, type, y, x, vy: -6.6, spin: rnd(1.4, 3.2) });
 }
@@ -1037,6 +1077,6 @@ window.NOVA = {
     },
     bloom: () => useBloom,
     rendererInfo: () => renderer.info.render,
-    version: '3d-1.4'
+    version: '3d-1.5'
   }
 };
