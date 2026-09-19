@@ -274,7 +274,7 @@ function makeBall(x, y, vx, vy, fire) {
     scene.add(s);
     trail.push(s);
   }
-  return { mesh, glow, light, trail, x, y, vx, vy, fire: !!fire, hist: [], alive: true };
+  return { mesh, glow, light, trail, x, y, vx, vy, fire: !!fire, hist: [], alive: true, cool: 0 };
 }
 function killBall(b) {
   b.alive = false;
@@ -659,7 +659,8 @@ function stepBall(b, dt) {
   }
 
   // briques
-  for (let i = 0; i < G.bricks.length; i++) {
+  if (b.cool > 0) b.cool--;
+  else for (let i = 0; i < G.bricks.length; i++) {
     const br = G.bricks[i];
     if (!br.alive) continue;
     const dx = b.x - br.x, dy = b.y - br.y;
@@ -670,12 +671,18 @@ function stepBall(b, dt) {
       if (!fired) {
         if (ox < oy) { b.x += (dx < 0 ? -ox : ox); b.vx = -b.vx; }
         else { b.y += (dy < 0 ? -oy : oy); b.vy = -b.vy; }
+        // anti-oscillation : la balle repoussée peut chevaucher une brique
+        // voisine ; sans ce délai elle rebondirait en boucle et gagnerait
+        // de la vitesse à chaque sous-pas.
+        b.cool = 2;
       }
-      damage(br, b);
-      // accélération progressive
-      const sp = Math.hypot(b.vx, b.vy);
-      const ns = clamp(sp + SPEED_PER_BRICK, 0, SPEED_CAP);
-      if (sp > 0.001 && !fired) { b.vx = b.vx / sp * ns; b.vy = b.vy / sp * ns; }
+      const hurt = damage(br, b);
+      // accélération progressive — uniquement si la brique a vraiment pris
+      if (hurt) {
+        const sp = Math.hypot(b.vx, b.vy);
+        const ns = clamp(sp + SPEED_PER_BRICK, 0, SPEED_CAP);
+        if (sp > 0.001 && !fired) { b.vx = b.vx / sp * ns; b.vy = b.vy / sp * ns; }
+      }
       if (!fired) break;
     }
   }
@@ -994,6 +1001,6 @@ window.NOVA = {
     },
     bloom: () => useBloom,
     rendererInfo: () => renderer.info.render,
-    version: '3d-1.2'
+    version: '3d-1.3'
   }
 };
