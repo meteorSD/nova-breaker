@@ -1087,7 +1087,7 @@ overlay('menu');
 
 // ---------------------------------------------------------------- test hook
 window.NOVA = {
-  G, THREE,
+  G, THREE, camera, scene, composer,
   api: {
     state: () => G.state,
     score: () => G.score,
@@ -1120,6 +1120,6 @@ window.NOVA = {
     },
     bloom: () => useBloom,
     rendererInfo: () => renderer.info.render,
-    version: '3d-1.6'
+    version: '3d-1.7'
   }
 };
