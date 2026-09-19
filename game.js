@@ -980,6 +980,7 @@ window.NOVA = {
     nextLevel: () => { hideOverlay(); nextLevel(); },
     setPaddle: x => { G.paddle.target = clamp(x, -AW / 2, AW / 2); G.paddle.x = G.paddle.target; },
     aimBall: (vx, vy) => { const b = G.balls[0]; if (b) { b.vx = vx; b.vy = vy; } },
+    forcePower: t => { const p = POWER_TYPES.find(x => x.t === t); if (p) applyPower(p); return !!p; },
     // pas-à-pas déterministe (indépendant de requestAnimationFrame) :
     // sert aux tests automatisés et au rendu forcé quand l'onglet est masqué
     step: (seconds, render) => {
@@ -993,6 +994,6 @@ window.NOVA = {
     },
     bloom: () => useBloom,
     rendererInfo: () => renderer.info.render,
-    version: '3d-1.1'
+    version: '3d-1.2'
   }
 };
