@@ -1016,8 +1016,13 @@ function fitCamera() {
   const aspect = window.innerWidth / Math.max(1, window.innerHeight);
   camera.aspect = aspect;
   const vFov = camera.fov * Math.PI / 180;
-  const needH = (AH / 2 + 3.2) / Math.tan(vFov / 2);
-  const needW = (AW / 2 + 3.0) / (Math.tan(vFov / 2) * aspect);
+  // en portrait (écran étroit), on rogne les marges pour que l'arène occupe
+  // un maximum de la largeur disponible au lieu de flotter dans l'écran
+  const portrait = aspect < 1;
+  const margH = portrait ? 1.1 : 3.2;
+  const margW = portrait ? 0.7 : 3.0;
+  const needH = (AH / 2 + margH) / Math.tan(vFov / 2);
+  const needW = (AW / 2 + margW) / (Math.tan(vFov / 2) * aspect);
   const dist = Math.max(needH, needW);
   camBase.set(0, 8.4, dist);
   camera.position.z = dist;
@@ -1025,6 +1030,8 @@ function fitCamera() {
   renderer.setSize(window.innerWidth, window.innerHeight, false);
   composer.setSize(window.innerWidth, window.innerHeight);
   bloom.resolution.set(window.innerWidth, window.innerHeight);
+  const hint = document.getElementById('rotateHint');
+  if (hint) hint.classList.toggle('show', portrait && window.innerWidth < 900);
 }
 window.addEventListener('resize', fitCamera);
 fitCamera();
@@ -1120,6 +1127,6 @@ window.NOVA = {
     },
     bloom: () => useBloom,
     rendererInfo: () => renderer.info.render,
-    version: '3d-1.7'
+    version: '3d-1.8'
   }
 };

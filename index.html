@@ -54,6 +54,14 @@
     text-shadow:0 0 22px currentColor,0 0 44px currentColor;transition:opacity .18s,transform .18s;white-space:nowrap}
   #toast.show{opacity:1;transform:translateX(-50%) scale(1)}
 
+  /* ---------- incitation à passer en paysage (portrait mobile) ---------- */
+  #rotateHint{left:50%;top:calc(50% + env(safe-area-inset-top));transform:translate(-50%,-50%);display:none;
+    padding:9px 16px;border-radius:99px;border:1px solid rgba(46,230,255,.35);background:rgba(4,10,22,.82);
+    color:var(--cyan);font-size:12.5px;font-weight:600;letter-spacing:.06em;text-align:center;max-width:88vw;
+    backdrop-filter:blur(6px);pointer-events:none;text-shadow:0 0 12px rgba(46,230,255,.6);z-index:12}
+  #rotateHint.show{display:block;animation:hintPulse 2.6s ease-in-out infinite}
+  @keyframes hintPulse{0%,100%{opacity:.55}50%{opacity:1}}
+
   /* ---------- hint bas ---------- */
   #hint{left:50%;bottom:calc(10px + env(safe-area-inset-bottom));transform:translateX(-50%);
     font-size:12px;letter-spacing:.1em;color:var(--dim);text-transform:uppercase;pointer-events:none;
@@ -128,6 +136,7 @@
 </div>
 
 <div id="toast" class="ui"></div>
+<div id="rotateHint" class="ui">↻ Tourne ton téléphone en paysage pour une meilleure vue</div>
 <div id="hint" class="ui">Souris / doigt pour déplacer · <b>Espace</b> ou clic pour lancer · <b>P</b> pause · <b>M</b> son</div>
 
 <div id="overlay" class="ui" role="dialog" aria-modal="true" aria-labelledby="ovTitle">
