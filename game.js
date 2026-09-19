@@ -154,9 +154,15 @@ function letterTexture(ch) {
   c.width = c.height = 128;
   const x = c.getContext('2d');
   x.clearRect(0, 0, 128, 128);
-  x.font = 'bold 84px "Segoe UI", system-ui, sans-serif';
+  x.font = 'bold 82px "Segoe UI", system-ui, sans-serif';
   x.textAlign = 'center'; x.textBaseline = 'middle';
-  x.shadowColor = 'rgba(255,255,255,0.9)'; x.shadowBlur = 18;
+  x.lineJoin = 'round';
+  // contour sombre : la lettre reste lisible par-dessus le gemme lumineux
+  x.lineWidth = 16; x.strokeStyle = 'rgba(2,6,14,0.95)';
+  x.strokeText(ch, 64, 70);
+  x.lineWidth = 7; x.strokeStyle = 'rgba(2,6,14,0.9)';
+  x.strokeText(ch, 64, 70);
+  x.shadowColor = 'rgba(255,255,255,0.8)'; x.shadowBlur = 10;
   x.fillStyle = '#ffffff';
   x.fillText(ch, 64, 70);
   const t = new THREE.CanvasTexture(c);
@@ -224,6 +230,18 @@ const baseEdge = new THREE.LineSegments(
 baseEdge.position.copy(base.position);
 arena.add(baseEdge);
 
+// liseré lumineux sur le dessus du socle + rainures : évite l'effet « gros bloc brut »
+const stripMat = new THREE.MeshStandardMaterial({ color: 0x0a1424, emissive: 0x66e8ff, emissiveIntensity: 1.5, roughness: 0.3, metalness: 0.6 });
+const strip = new THREE.Mesh(new THREE.BoxGeometry(AW + RAIL * 2 + 0.44, 0.13, 2.64), stripMat);
+strip.position.set(0, FLOOR_Y + BASE_H - 0.07, 0.4);
+arena.add(strip);
+const grooveMat = new THREE.MeshBasicMaterial({ color: 0x1d5fa8, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false });
+for (let gx = -AW / 2; gx <= AW / 2 + 0.01; gx += 2.5) {
+  const gr = new THREE.Mesh(new THREE.PlaneGeometry(0.05, BASE_H * 0.62), grooveMat);
+  gr.position.set(gx, FLOOR_Y + BASE_H * 0.42, 1.72);
+  arena.add(gr);
+}
+
 // faux ombrage de contact : la grille s'assombrit sous l'arène
 const aoTex = (() => {
   const c = document.createElement('canvas'); c.width = c.height = 256;
@@ -245,19 +263,44 @@ contact.rotation.x = -Math.PI / 2;
 contact.position.set(0, FLOOR_Y + 0.02, 6);
 arena.add(contact);
 
-// piliers d'angle : accentuent la parallaxe quand la caméra suit la balle
-const pillarGeo = new THREE.BoxGeometry(0.34, AH + 3, 0.34);
-const pillarMatC = new THREE.MeshStandardMaterial({ color: 0x07131f, emissive: 0x2ee6ff, emissiveIntensity: 1.1, roughness: 0.3, metalness: 0.5 });
-const pillarMatM = new THREE.MeshStandardMaterial({ color: 0x1a0722, emissive: 0xff4fd8, emissiveIntensity: 1.1, roughness: 0.3, metalness: 0.5 });
-[[-(AW / 2 + RAIL + 1.1), pillarMatC], [(AW / 2 + RAIL + 1.1), pillarMatM]].forEach(([px, pm]) => {
-  [[-2.6, 1], [3.2, 0.55]].forEach(([pz, sc]) => {
+// piliers d'angle : tubes néon volumiques (arêtes visibles) pour la parallaxe
+const pillarGeo = new THREE.BoxGeometry(0.42, AH + 3.4, 0.42);
+const pillarEdgeGeo = new THREE.EdgesGeometry(pillarGeo);
+const pillarMatC = new THREE.MeshStandardMaterial({ color: 0x07131f, emissive: 0x2ee6ff, emissiveIntensity: 0.85, roughness: 0.3, metalness: 0.6 });
+const pillarMatM = new THREE.MeshStandardMaterial({ color: 0x1a0722, emissive: 0xff4fd8, emissiveIntensity: 0.85, roughness: 0.3, metalness: 0.6 });
+[[-(AW / 2 + RAIL + 1.2), pillarMatC, 0x9ff6ff], [(AW / 2 + RAIL + 1.2), pillarMatM, 0xffb3ec]].forEach(([px, pm, ec]) => {
+  [[-3.0, 1.0], [3.6, 0.8]].forEach(([pz, sc]) => {
     const p = new THREE.Mesh(pillarGeo, pm);
-    p.position.set(px, (AH + 3) / 2 - 1.6, pz);
-    p.scale.setScalar(sc);
-    p.scale.y = 1;
+    p.position.set(px, (AH + 3.4) / 2 - 1.6, pz);
+    p.scale.set(sc, 1, sc);
     arena.add(p);
+    const e = new THREE.LineSegments(pillarEdgeGeo, new THREE.LineBasicMaterial({ color: ec, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false }));
+    e.position.copy(p.position);
+    e.scale.copy(p.scale);
+    arena.add(e);
   });
 });
+
+// brume néon à l'horizon : adoucit la jonction sol / mur du fond
+const hazeTex = (() => {
+  const c = document.createElement('canvas'); c.width = 8; c.height = 256;
+  const x = c.getContext('2d');
+  const g = x.createLinearGradient(0, 0, 0, 256);
+  g.addColorStop(0, 'rgba(20,60,140,0)');
+  g.addColorStop(0.55, 'rgba(40,120,220,0.20)');
+  g.addColorStop(0.85, 'rgba(90,200,255,0.42)');
+  g.addColorStop(1, 'rgba(140,230,255,0.55)');
+  x.fillStyle = g; x.fillRect(0, 0, 8, 256);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+})();
+const haze = new THREE.Mesh(
+  new THREE.PlaneGeometry(230, 22),
+  new THREE.MeshBasicMaterial({ map: hazeTex, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false })
+);
+haze.position.set(0, -1.6 + 11, -4.05);
+arena.add(haze);
 
 // rails néon — ancrés jusqu'au sol pour que l'arène « pose » dans l'espace
 const railMat = new THREE.MeshStandardMaterial({ color: 0x0a1830, emissive: 0x1b6cff, emissiveIntensity: 0.5, roughness: 0.4, metalness: 0.6 });
@@ -452,9 +495,9 @@ function spawnPower(x, y) {
   // arêtes nettes : le bonus reste lisible même avec le bloom
   const eg = new THREE.LineSegments(powerEdge, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));
   mesh.add(eg);
-  // lettre blanche placée devant le gemme (pas noyée dedans)
-  const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: LETTERS[type.t], color: 0xffffff, transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending }));
-  spr.scale.setScalar(2.0);
+  // lettre blanche + contour sombre, en blending normal pour rester lisible
+  const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: LETTERS[type.t], transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending }));
+  spr.scale.setScalar(2.1);
   spr.position.set(0, 0, 1.0);
   spr.renderOrder = 5;
   mesh.add(spr);
@@ -1077,6 +1120,6 @@ window.NOVA = {
     },
     bloom: () => useBloom,
     rendererInfo: () => renderer.info.render,
-    version: '3d-1.5'
+    version: '3d-1.6'
   }
 };
