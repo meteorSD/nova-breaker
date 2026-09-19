@@ -79,11 +79,11 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPrefere
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.setSize(window.innerWidth, window.innerHeight, false);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.06;
+renderer.toneMappingExposure = 0.96;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x03050c);
-scene.fog = new THREE.FogExp2(0x03050c, 0.0125);
+scene.fog = new THREE.FogExp2(0x03050c, 0.0058);
 
 const camera = new THREE.PerspectiveCamera(46, window.innerWidth / window.innerHeight, 0.1, 400);
 camera.position.set(0, 8.4, 34);
@@ -94,7 +94,7 @@ const camTarget = new THREE.Vector3(0, 10.6, 0);
 // ---------------------------------------------------------------- post-fx
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
-const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.92, 0.6, 0.16);
+const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.6, 0.52, 0.4);
 composer.addPass(bloom);
 composer.addPass(new OutputPass());
 let useBloom = true;
@@ -163,7 +163,11 @@ function letterTexture(ch) {
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }
-const TEX = { glow: glowTexture(), grid: gridTexture(512, 32, 'rgba(70,190,255,0.20)', 'rgba(120,220,255,0.34)', 128), floor: gridTexture(512, 32, 'rgba(90,140,255,0.14)', 'rgba(140,190,255,0.24)', 128) };
+const TEX = {
+  glow: glowTexture(),
+  grid: gridTexture(512, 32, 'rgba(80,190,255,0.30)', 'rgba(140,225,255,0.52)', 128),
+  floor: gridTexture(512, 32, 'rgba(110,215,255,0.40)', 'rgba(170,240,255,0.62)', 128)
+};
 TEX.floor.repeat.set(26, 18);
 TEX.grid.repeat.set(6, 5);
 const LETTERS = {};
@@ -183,22 +187,54 @@ function glowSprite(color, scale, opacity) {
 const arena = new THREE.Group();
 scene.add(arena);
 
-// mur du fond
+// mur du fond — grille émissive pour la profondeur
 const backWall = new THREE.Mesh(
   new THREE.PlaneGeometry(AW + 26, AH + 22),
-  new THREE.MeshStandardMaterial({ map: TEX.grid, color: 0x0a1226, roughness: 0.95, metalness: 0.05 })
+  new THREE.MeshStandardMaterial({
+    map: TEX.grid, emissiveMap: TEX.grid, emissive: 0x2f7fe0, emissiveIntensity: 0.5,
+    color: 0x0a1226, roughness: 0.95, metalness: 0.05
+  })
 );
 backWall.position.set(0, AH / 2 - 1, -4.2);
 arena.add(backWall);
 
-// sol
+// sol — grille émissive qui file vers la caméra (repère de profondeur)
 const floor = new THREE.Mesh(
   new THREE.PlaneGeometry(220, 150),
-  new THREE.MeshStandardMaterial({ map: TEX.floor, color: 0x070b18, roughness: 0.82, metalness: 0.25 })
+  new THREE.MeshStandardMaterial({
+    map: TEX.floor, emissiveMap: TEX.floor, emissive: 0x2aa8ff, emissiveIntensity: 0.62,
+    color: 0x070b18, roughness: 0.78, metalness: 0.3
+  })
 );
 floor.rotation.x = -Math.PI / 2;
 floor.position.set(0, -1.6, 26);
 arena.add(floor);
+
+// socle de l'arène : ancre le terrain dans l'espace 3D
+const baseMat = new THREE.MeshStandardMaterial({ color: 0x080e1e, emissive: 0x1b6cff, emissiveIntensity: 0.5, roughness: 0.35, metalness: 0.7 });
+const base = new THREE.Mesh(new THREE.BoxGeometry(AW + RAIL * 2 + 0.4, 0.5, 2.6), baseMat);
+base.position.set(0, -0.55, 0.4);
+arena.add(base);
+const baseEdge = new THREE.LineSegments(
+  new THREE.EdgesGeometry(base.geometry),
+  new THREE.LineBasicMaterial({ color: 0x8ff2ff, transparent: true, opacity: 0.75, blending: THREE.AdditiveBlending })
+);
+baseEdge.position.copy(base.position);
+arena.add(baseEdge);
+
+// piliers d'angle : accentuent la parallaxe quand la caméra suit la balle
+const pillarGeo = new THREE.BoxGeometry(0.34, AH + 3, 0.34);
+const pillarMatC = new THREE.MeshStandardMaterial({ color: 0x07131f, emissive: 0x2ee6ff, emissiveIntensity: 1.1, roughness: 0.3, metalness: 0.5 });
+const pillarMatM = new THREE.MeshStandardMaterial({ color: 0x1a0722, emissive: 0xff4fd8, emissiveIntensity: 1.1, roughness: 0.3, metalness: 0.5 });
+[[-(AW / 2 + RAIL + 1.1), pillarMatC], [(AW / 2 + RAIL + 1.1), pillarMatM]].forEach(([px, pm]) => {
+  [[-2.6, 1], [3.2, 0.55]].forEach(([pz, sc]) => {
+    const p = new THREE.Mesh(pillarGeo, pm);
+    p.position.set(px, (AH + 3) / 2 - 1.6, pz);
+    p.scale.setScalar(sc);
+    p.scale.y = 1;
+    arena.add(p);
+  });
+});
 
 // rails néon
 const railMat = new THREE.MeshStandardMaterial({ color: 0x0a1830, emissive: 0x1b6cff, emissiveIntensity: 0.55, roughness: 0.4, metalness: 0.6 });
@@ -222,10 +258,10 @@ rail(AW + RAIL * 2, RAIL, 1.7, 0, AH + RAIL / 2, railMat);
 // ---------------------------------------------------------------- palette
 const paddleGroup = new THREE.Group();
 scene.add(paddleGroup);
-const paddleMat = new THREE.MeshStandardMaterial({ color: 0x0d2233, emissive: 0x35e6ff, emissiveIntensity: 1.35, roughness: 0.28, metalness: 0.55 });
+const paddleMat = new THREE.MeshStandardMaterial({ color: 0x0d2233, emissive: 0x35e6ff, emissiveIntensity: 0.95, roughness: 0.28, metalness: 0.55 });
 let paddleMesh = null, paddleEdge = null;
-const paddleGlow = glowSprite(0x43e9ff, 7.5, 0.5);
-const paddleLight = new THREE.PointLight(0x35e6ff, 22, 20, 2);
+const paddleGlow = glowSprite(0x43e9ff, 6.2, 0.32);
+const paddleLight = new THREE.PointLight(0x35e6ff, 16, 18, 2);
 paddleLight.position.set(0, PADDLE_Y, 1.6);
 scene.add(paddleLight);
 paddleGroup.add(paddleGlow);
@@ -244,7 +280,7 @@ function buildPaddle(width) {
   );
   paddleEdge.scale.copy(paddleMesh.scale);
   paddleGroup.add(paddleEdge);
-  paddleGlow.scale.set(width * 1.9, 3.4, 1);
+  paddleGlow.scale.set(width * 1.45, 2.6, 1);
 }
 buildPaddle(PADDLE_W);
 paddleGroup.position.set(0, PADDLE_Y, 0);
@@ -256,15 +292,15 @@ const TRAIL_N = 16;
 function makeBall(x, y, vx, vy, fire) {
   const mat = new THREE.MeshStandardMaterial({
     color: 0x0e2b33, emissive: fire ? 0xff8a3d : 0x9ff8ff,
-    emissiveIntensity: 2.6, roughness: 0.2, metalness: 0.1
+    emissiveIntensity: 1.55, roughness: 0.2, metalness: 0.1
   });
   const mesh = new THREE.Mesh(ballGeo, mat);
   mesh.position.set(x, y, 0);
   scene.add(mesh);
-  const glow = glowSprite(fire ? 0xff9a4d : 0x66f6ff, 4.2, 0.95);
+  const glow = glowSprite(fire ? 0xff9a4d : 0x66f6ff, 3.0, 0.7);
   glow.position.set(x, y, 0);
   scene.add(glow);
-  const light = new THREE.PointLight(fire ? 0xff9a4d : 0x66f6ff, 26, 22, 2);
+  const light = new THREE.PointLight(fire ? 0xff9a4d : 0x66f6ff, 18, 20, 2);
   light.position.set(x, y, 1.4);
   scene.add(light);
   const trail = [];
@@ -653,7 +689,7 @@ function stepBall(b, dt) {
     b.vy = Math.cos(ang) * sp;
     G.combo = 0;
     G.shake = Math.max(G.shake, 0.1);
-    paddleMat.emissiveIntensity = 2.6;
+    paddleMat.emissiveIntensity = 1.7;
     sfx('bounce');
     hud();
   }
@@ -791,7 +827,7 @@ function stepFx(dt) {
     b.glow.position.set(b.x, b.y, 0.1);
     b.light.position.set(b.x, b.y, 1.5);
     const sp = Math.hypot(b.vx, b.vy);
-    b.glow.scale.setScalar(3.6 + Math.min(2.4, sp * 0.07));
+    b.glow.scale.setScalar(2.5 + Math.min(1.6, sp * 0.06));
     b.mesh.rotation.x += sp * dt * 0.12;
     b.mesh.rotation.y += sp * dt * 0.09;
     b.hist.unshift({ x: b.x, y: b.y });
@@ -810,7 +846,7 @@ function stepFx(dt) {
   paddleGroup.position.x = G.paddle.x;
   paddleGlow.position.set(0, 0, 0.5);
   paddleLight.position.set(G.paddle.x, PADDLE_Y, 1.8);
-  paddleMat.emissiveIntensity += (1.35 - paddleMat.emissiveIntensity) * Math.min(1, dt * 6);
+  paddleMat.emissiveIntensity += (0.95 - paddleMat.emissiveIntensity) * Math.min(1, dt * 6);
 
   // caméra : parallaxe + shake
   const lead = G.balls.length ? clamp(G.balls[0].x, -AW / 2, AW / 2) : 0;
@@ -1001,6 +1037,6 @@ window.NOVA = {
     },
     bloom: () => useBloom,
     rendererInfo: () => renderer.info.render,
-    version: '3d-1.3'
+    version: '3d-1.4'
   }
 };
